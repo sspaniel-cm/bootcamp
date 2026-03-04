@@ -83,7 +83,7 @@ public class WorkOrderTools
         }
     }
 
-    [McpServerTool(Name = "execute-work-order-command"), Description("Executes a state command on a work order. Available commands: DraftToAssignedCommand (requires assigneeUsername), AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, AssignedToCancelledCommand.")]
+    [McpServerTool(Name = "execute-work-order-command"), Description("Executes a state command on a work order. Available commands: DraftToAssignedCommand (requires assigneeUsername), AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, CompleteToInProgressCommand, Reopen, AssignedToCancelledCommand.")]
     public static async Task<string> ExecuteWorkOrderCommand(
         IBus bus,
         [Description("The work order number")] string workOrderNumber,
@@ -126,13 +126,15 @@ public class WorkOrderTools
             "InProgressToAssignedCommand" => new InProgressToAssignedCommand(workOrder, user),
             "Shelve" => new InProgressToAssignedCommand(workOrder, user),
             "InProgressToCompleteCommand" => new InProgressToCompleteCommand(workOrder, user),
+            "CompleteToInProgressCommand" => new CompleteToInProgressCommand(workOrder, user),
+            "Reopen" => new CompleteToInProgressCommand(workOrder, user),
             "AssignedToCancelledCommand" => new AssignedToCancelledCommand(workOrder, user),
             _ => null
         };
 
         if (command == null)
         {
-            return $"Unknown command '{commandName}'. Available commands: DraftToAssignedCommand, AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, AssignedToCancelledCommand.";
+            return $"Unknown command '{commandName}'. Available commands: DraftToAssignedCommand, AssignedToInProgressCommand, InProgressToAssignedCommand, Shelve, InProgressToCompleteCommand, CompleteToInProgressCommand, Reopen, AssignedToCancelledCommand.";
         }
 
         if (!command.IsValid())

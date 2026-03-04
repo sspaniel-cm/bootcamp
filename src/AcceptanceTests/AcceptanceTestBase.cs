@@ -402,4 +402,17 @@ public abstract class AcceptanceTestBase
         WorkOrder rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ?? throw new InvalidOperationException();
         return rehyratedOrder;
     }
+
+    protected async Task<WorkOrder> ReopenExistingWorkOrder(WorkOrder order)
+    {
+        var woNumberLocator = Page.GetByTestId(nameof(WorkOrderManage.Elements.WorkOrderNumber));
+        await woNumberLocator.WaitForAsync();
+        await Expect(woNumberLocator).ToHaveTextAsync(order.Number!);
+
+        await Click(nameof(WorkOrderManage.Elements.CommandButton) + CompleteToInProgressCommand.Name);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Task.Delay(GetInputDelayMs()); // Give time for the save operation to complete on Azure
+        WorkOrder rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ?? throw new InvalidOperationException();
+        return rehyratedOrder;
+    }
 }

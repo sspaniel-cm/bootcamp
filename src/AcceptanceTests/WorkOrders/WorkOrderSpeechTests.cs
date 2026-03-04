@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using ClearMeasure.Bootcamp.Core.Model.StateCommands;
 using ClearMeasure.Bootcamp.UI.Shared.Pages;
 
 namespace ClearMeasure.Bootcamp.AcceptanceTests.WorkOrders;
@@ -74,7 +75,7 @@ public class WorkOrderSpeechTests : AcceptanceTestBase
         order = await CompleteExistingWorkOrder(order);
         order = await ClickWorkOrderNumberFromSearchPage(order);
 
-        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.ReadOnlyMessage))).ToBeVisibleAsync();
+        await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.CommandButton) + CompleteToInProgressCommand.Name)).ToBeVisibleAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.SpeakTitle))).ToBeVisibleAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.SpeakDescription))).ToBeVisibleAsync();
     }
