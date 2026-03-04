@@ -1,5 +1,6 @@
 using ClearMeasure.Bootcamp.AcceptanceTests.Extensions;
 using ClearMeasure.Bootcamp.Core.Queries;
+using ClearMeasure.Bootcamp.UI.Shared;
 using ClearMeasure.Bootcamp.UI.Shared.Pages;
 
 namespace ClearMeasure.Bootcamp.AcceptanceTests.WorkOrders;
@@ -24,6 +25,12 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
         order.Title = expectedTitle;
         order.Description = expectedDescription;
         order = await CompleteExistingWorkOrder(order);
+
+        // Switch to a non-creator user to verify the read-only view
+        var observer = CreateAdditionalTestUser();
+        await LogoutAndLoginAsUser(observer);
+        await Click(nameof(NavMenu.Elements.Search));
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         order = await ClickWorkOrderNumberFromSearchPage(order);
 
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.Title))).ToHaveValueAsync(expectedTitle,
@@ -62,11 +69,17 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
         order = await ClickWorkOrderNumberFromSearchPage(order);
 
         order = await CompleteExistingWorkOrder(order);
-        order = await ClickWorkOrderNumberFromSearchPage(order);
 
         var rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ??
                              throw new InvalidOperationException();
         rehyratedOrder.Status.ShouldBe(WorkOrderStatus.Complete);
+
+        // Switch to a non-creator user to verify the read-only message
+        var observer = CreateAdditionalTestUser();
+        await LogoutAndLoginAsUser(observer);
+        await Click(nameof(NavMenu.Elements.Search));
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await ClickWorkOrderNumberFromSearchPage(order);
 
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.ReadOnlyMessage)))
             .ToHaveTextAsync("This work order is read-only for you at this time.");
