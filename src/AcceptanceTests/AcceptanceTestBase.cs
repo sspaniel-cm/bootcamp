@@ -211,7 +211,12 @@ public abstract class AcceptanceTestBase
 
     protected async Task LoginAsCurrentUser()
     {
-        var username = CurrentUser.UserName;
+        await LoginAsUser(CurrentUser);
+    }
+
+    protected async Task LoginAsUser(Employee user)
+    {
+        var username = user.UserName;
         await TakeScreenshotAsync();
         await Click(nameof(LoginLink.Elements.LoginLink));
         await Page.WaitForURLAsync("**/login");
@@ -228,8 +233,31 @@ public abstract class AcceptanceTestBase
         await TakeScreenshotAsync();
         // Assert: Should be redirected to home and see welcome message
         var welcomeTextLocator = Page.GetByTestId(nameof(Logout.Elements.WelcomeText));
-        await Expect(welcomeTextLocator).ToContainTextAsync($"Welcome {CurrentUser.UserName}");
+        await Expect(welcomeTextLocator).ToContainTextAsync($"Welcome {username}");
         await welcomeTextLocator.DblClickAsync(); // causes the browser to finish DOM loading - HACK
+    }
+
+    protected async Task LogoutAndLoginAsUser(Employee user)
+    {
+        var logoutLink = Page.GetByTestId(nameof(Logout.Elements.LogoutLink));
+        if (await logoutLink.CountAsync() > 0)
+        {
+            await logoutLink.EvaluateAsync("el => el.click()");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        }
+
+        await LoginAsUser(user);
+    }
+
+    protected Employee CreateAdditionalTestUser()
+    {
+        using var context = TestHost.NewDbContext();
+        var employee = TestHost.Faker<Employee>();
+        employee.UserName = $"test_{TestTag}_extra_{employee.UserName}";
+        employee.AddRole(new Role("admin", true, true));
+        context.Add(employee);
+        context.SaveChanges();
+        return employee;
     }
 
     /// <summary>
@@ -399,6 +427,20 @@ public abstract class AcceptanceTestBase
         await Click(nameof(WorkOrderManage.Elements.CommandButton) + InProgressToCompleteCommand.Name);
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Task.Delay(GetInputDelayMs()); // Give time for the save operation to complete on Azure
+        WorkOrder rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ?? throw new InvalidOperationException();
+        return rehyratedOrder;
+    }
+
+    protected async Task<WorkOrder> ReassignExistingWorkOrder(WorkOrder order, string username)
+    {
+        var woNumberLocator = Page.GetByTestId(nameof(WorkOrderManage.Elements.WorkOrderNumber));
+        await woNumberLocator.WaitForAsync();
+        await Expect(woNumberLocator).ToHaveTextAsync(order.Number!);
+
+        await Select(nameof(WorkOrderManage.Elements.Assignee), username);
+        await Click(nameof(WorkOrderManage.Elements.CommandButton) + CompleteToAssignedCommand.Name);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Task.Delay(GetInputDelayMs());
         WorkOrder rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ?? throw new InvalidOperationException();
         return rehyratedOrder;
     }

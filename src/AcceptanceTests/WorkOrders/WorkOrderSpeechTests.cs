@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using ClearMeasure.Bootcamp.UI.Shared;
 using ClearMeasure.Bootcamp.UI.Shared.Pages;
 
 namespace ClearMeasure.Bootcamp.AcceptanceTests.WorkOrders;
@@ -72,10 +73,17 @@ public class WorkOrderSpeechTests : AcceptanceTestBase
         order = await ClickWorkOrderNumberFromSearchPage(order);
 
         order = await CompleteExistingWorkOrder(order);
-        order = await ClickWorkOrderNumberFromSearchPage(order);
+
+        // Switch to a non-creator user to verify read-only view with speak buttons
+        var observer = CreateAdditionalTestUser();
+        await LogoutAndLoginAsUser(observer);
+        await Click(nameof(NavMenu.Elements.Search));
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await ClickWorkOrderNumberFromSearchPage(order);
 
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.ReadOnlyMessage))).ToBeVisibleAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.SpeakTitle))).ToBeVisibleAsync();
         await Expect(Page.GetByTestId(nameof(WorkOrderManage.Elements.SpeakDescription))).ToBeVisibleAsync();
     }
 }
+
