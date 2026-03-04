@@ -13,5 +13,7 @@ stateDiagram-v2
 
     InProgress --> Complete : InProgressToCompleteCommand
 
+    Complete --> InProgress : CompleteToInProgressCommand
+
     Complete --> [*]
 ```
