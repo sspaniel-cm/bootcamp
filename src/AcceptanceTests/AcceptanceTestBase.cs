@@ -402,4 +402,18 @@ public abstract class AcceptanceTestBase
         WorkOrder rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ?? throw new InvalidOperationException();
         return rehyratedOrder;
     }
+
+    protected async Task<WorkOrder> ReassignExistingWorkOrder(WorkOrder order, string username)
+    {
+        var woNumberLocator = Page.GetByTestId(nameof(WorkOrderManage.Elements.WorkOrderNumber));
+        await woNumberLocator.WaitForAsync();
+        await Expect(woNumberLocator).ToHaveTextAsync(order.Number!);
+
+        await Select(nameof(WorkOrderManage.Elements.Assignee), username);
+        await Click(nameof(WorkOrderManage.Elements.CommandButton) + CompleteToAssignedCommand.Name);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Task.Delay(GetInputDelayMs());
+        WorkOrder rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ?? throw new InvalidOperationException();
+        return rehyratedOrder;
+    }
 }
