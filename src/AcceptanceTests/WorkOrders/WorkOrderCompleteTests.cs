@@ -69,10 +69,7 @@ public class WorkOrderCompleteTests : AcceptanceTestBase
         order = await ClickWorkOrderNumberFromSearchPage(order);
 
         order = await CompleteExistingWorkOrder(order);
-
-        var rehyratedOrder = await Bus.Send(new WorkOrderByNumberQuery(order.Number!)) ??
-                             throw new InvalidOperationException();
-        rehyratedOrder.Status.ShouldBe(WorkOrderStatus.Complete);
+        order.Status.ShouldBe(WorkOrderStatus.Complete);
 
         // Switch to a non-creator user to verify the read-only message
         var observer = CreateAdditionalTestUser();
