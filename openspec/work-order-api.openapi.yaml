@@ -1,0 +1,256 @@
+openapi: "3.1.0"
+info:
+  title: Church Bulletin Work Order API
+  description: |
+    API for managing work orders in the Church Bulletin system.
+
+    The application exposes two API surfaces:
+    - **REST API** — a single generic endpoint (`POST /api/blazor-wasm-single-api`) used by the Blazor WASM client to dispatch all work order commands and queries.
+    - **MCP (Model Context Protocol) endpoint** — exposed at `/mcp` for AI agent integration, providing structured tools for creating, querying, and transitioning work orders.
+
+    ## Work Order State Machine
+
+    ```
+    [Draft] --Assign--> [Assigned] --Start--> [InProgress] --Complete--> [Complete]
+                |                     |
+                |                  <--Shelve--
+                |
+                +--Unassign--> [Draft]   (NEW — issue #3)
+                |
+                +--Cancel--> [Cancelled]
+    ```
+
+    ## State Transition Commands
+
+    | Command | From | To | Actor |
+    |---|---|---|---|
+    | `SaveDraftCommand` | Draft | Draft | Creator |
+    | `DraftToAssignedCommand` | Draft | Assigned | Creator |
+    | `AssignedToDraftCommand` | Assigned | Draft | Creator |
+    | `AssignedToInProgressCommand` | Assigned | InProgress | Assignee |
+    | `InProgressToAssignedCommand` | InProgress | Assigned | Assignee |
+    | `InProgressToCompleteCommand` | InProgress | Complete | Assignee |
+    | `AssignedToCancelledCommand` | Assigned | Cancelled | Creator |
+  version: "1.0.0"
+  contact:
+    name: Church Bulletin Team
+
+servers:
+  - url: https://localhost:7174
+    description: Local development server
+  - url: http://localhost:5174
+    description: Local development server (HTTP)
+
+paths:
+  /api/blazor-wasm-single-api:
+    post:
+      summary: Dispatch a work order command or query
+      description: |
+        Generic message-bus endpoint used by the Blazor WASM client. Accepts a serialized
+        `WebServiceMessage` wrapper containing either an `IRemotableRequest` (awaits a response)
+        or an `IRemotableEvent` (fire-and-forget). All work order operations — including state
+        transitions — flow through this single endpoint.
+      operationId: dispatchMessage
+      tags:
+        - Work Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebServiceMessage"
+      responses:
+        "200":
+          description: Serialized response payload (command result or query result)
+          content:
+            application/json:
+              schema:
+                type: string
+                description: JSON-serialized response object
+
+  /mcp:
+    post:
+      summary: MCP (Model Context Protocol) endpoint for AI agent integration
+      description: |
+        Model Context Protocol endpoint exposing structured tools for AI agents and LLMs.
+        Supports the full work order lifecycle.
+
+        ### Available Tools
+
+        | Tool | Description |
+        |---|---|
+        | `list-work-orders` | Lists all work orders, optionally filtered by status |
+        | `get-work-order` | Retrieves a single work order by number |
+        | `create-work-order` | Creates a new Draft work order |
+        | `execute-work-order-command` | Executes a state transition command |
+        | `list-work-order-attachments` | Lists attachments for a work order |
+        | `list-employees` | Lists all employees |
+        | `get-employee` | Retrieves a single employee by username |
+      operationId: mcpEndpoint
+      tags:
+        - MCP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: MCP JSON-RPC request body
+      responses:
+        "200":
+          description: MCP JSON-RPC response
+
+  /_healthcheck:
+    get:
+      summary: Health check
+      description: Returns the health status of the application and its dependencies.
+      operationId: healthCheck
+      tags:
+        - Infrastructure
+      responses:
+        "200":
+          description: Healthy
+        "503":
+          description: Unhealthy
+
+  /Version:
+    get:
+      summary: Application version
+      description: Returns the current assembly version of the application.
+      operationId: getVersion
+      tags:
+        - Infrastructure
+      responses:
+        "200":
+          description: Version string
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    WebServiceMessage:
+      type: object
+      description: Generic wrapper for all commands and queries dispatched from the Blazor WASM client.
+      properties:
+        typeName:
+          type: string
+          description: Fully-qualified .NET type name of the payload (e.g., `ClearMeasure.Bootcamp.Core.Model.StateCommands.AssignedToDraftCommand`).
+        payload:
+          type: string
+          description: JSON-serialized command or query object.
+
+    WorkOrderStatus:
+      type: string
+      description: Work order status codes.
+      enum:
+        - Draft
+        - Assigned
+        - InProgress
+        - Complete
+        - Cancelled
+
+    WorkOrderSummary:
+      type: object
+      properties:
+        number:
+          type: string
+          description: Unique work order number.
+        title:
+          type: string
+        status:
+          $ref: "#/components/schemas/WorkOrderStatus"
+        creator:
+          type: string
+          nullable: true
+          description: Full name of the creator.
+        assignee:
+          type: string
+          nullable: true
+          description: Full name of the current assignee.
+
+    WorkOrderDetail:
+      allOf:
+        - $ref: "#/components/schemas/WorkOrderSummary"
+      properties:
+        description:
+          type: string
+          nullable: true
+        roomNumber:
+          type: string
+          nullable: true
+        creatorUsername:
+          type: string
+          nullable: true
+        assigneeUsername:
+          type: string
+          nullable: true
+        createdDate:
+          type: string
+          format: date-time
+          nullable: true
+        assignedDate:
+          type: string
+          format: date-time
+          nullable: true
+        completedDate:
+          type: string
+          format: date-time
+          nullable: true
+
+    StateCommandRequest:
+      type: object
+      description: |
+        Represents a work order state transition command. Passed as the `payload` field in a
+        `WebServiceMessage` envelope. The `typeName` field must match the command class name.
+
+        ### AssignedToDraftCommand (Unassign)
+
+        Transitions a work order from **Assigned → Draft**, clearing the assignee and assigned
+        date. Only the **Creator** of the work order may execute this command.
+
+        ```json
+        {
+          "workOrder": { "id": "<guid>", ... },
+          "currentUser": { "id": "<guid>", ... }
+        }
+        ```
+      properties:
+        workOrder:
+          type: object
+          description: The work order to transition.
+        currentUser:
+          type: object
+          description: The employee executing the command. Must satisfy the `UserCanExecute` constraint for the chosen command.
+
+    AssignedToDraftCommand:
+      type: object
+      description: |
+        **New in issue #3.** Transitions a work order from **Assigned** status back to **Draft**,
+        clearing both `Assignee` and `AssignedDate`. Only the **Creator** of the work order is
+        authorized to execute this command.
+
+        This is distinct from `AssignedToCancelledCommand`: unassigning returns the work order
+        to an active draft state for re-assignment, whereas cancellation permanently terminates it.
+
+        **State transition:** `Assigned` → `Draft`
+        **Verb:** `Unassign`
+        **Authorization:** `currentUser == WorkOrder.Creator`
+        **Side effects:**
+          - `WorkOrder.Assignee` is set to `null`
+          - `WorkOrder.AssignedDate` is set to `null`
+      properties:
+        workOrder:
+          $ref: "#/components/schemas/WorkOrderDetail"
+        currentUser:
+          type: object
+          description: Must be the Creator of the work order.
+
+tags:
+  - name: Work Orders
+    description: Work order management operations
+  - name: MCP
+    description: Model Context Protocol tools for AI agent integration
+  - name: Infrastructure
+    description: Health, diagnostics, and version endpoints
